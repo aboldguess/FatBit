@@ -1,27 +1,42 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Entries</h2>
-<form action="{{ url_for('add_entry') }}" method="post" class="row g-3 mb-3">
+
+<!-- Import Fitbit ZIP -->
+<form action="{{ url_for('import_zip_route') }}" method="post" enctype="multipart/form-data" class="row g-3 mb-4">
   <div class="col-auto">
+    <input type="file" class="form-control" name="zipfile" accept=".zip" required>
+  </div>
+  <div class="col-auto">
+    <input type="text" class="form-control" name="source" placeholder="Source" value="Fitbit">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary mb-3">Import</button>
+  </div>
+</form>
+
+<!-- Manual entry form -->
+<form action="{{ url_for('add_entry') }}" method="post" class="row g-3 mb-3">
+  <div class="col-md-2">
     <input type="text" class="form-control" name="logId" placeholder="Log ID">
   </div>
-  <div class="col-auto">
-    <input type="text" class="form-control" name="date" placeholder="MM/DD/YY" required>
+  <div class="col-md-2">
+    <input type="text" class="form-control" name="date" placeholder="MM/DD/YY" value="{{ datetime.datetime.now().strftime('%m/%d/%y') }}" required>
   </div>
-  <div class="col-auto">
-    <input type="text" class="form-control" name="time" placeholder="HH:MM:SS" required>
+  <div class="col-md-2">
+    <input type="text" class="form-control" name="time" placeholder="HH:MM:SS" value="{{ datetime.datetime.now().strftime('%H:%M:%S') }}" required>
   </div>
-  <div class="col-auto">
+  <div class="col-md-2">
     <input type="number" step="0.01" class="form-control" name="weight_kg" placeholder="Weight (kg)" required>
   </div>
-  <div class="col-auto">
+  <div class="col-md-2">
     <input type="number" step="0.01" class="form-control" name="fat_percent" placeholder="Body Fat (%)">
   </div>
-  <div class="col-auto">
-    <input type="text" class="form-control" name="source" placeholder="Source">
+  <div class="col-md-2">
+    <input type="text" class="form-control" name="source" placeholder="Source" value="Manual">
   </div>
-  <div class="col-auto">
-    <button type="submit" class="btn btn-primary mb-3">Add</button>
+  <div class="col-12">
+    <button type="submit" class="btn btn-primary">Add</button>
   </div>
 </form>
 {{ table|safe }}
