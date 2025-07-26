@@ -50,6 +50,10 @@ For more details see [Google's help article](https://support.google.com/fitbit/a
 
 FatBit Web replaces the old PyQt desktop application with a more accessible web interface.
 
+The legacy GUI (`FatBit.py`) now supports loading exported data directly from ZIP
+archives. Use **Load JSON/ZIP Files** and select your Fitbit export to import all
+contained JSON entries automatically.
+
 ## Hosting on Raspberry Pi
 
 A helper script `rpi_server.py` is provided to simplify running the web app on a Raspberry Pi. Specify the desired port as an argument:
