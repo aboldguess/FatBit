@@ -49,3 +49,13 @@ For more details see [Google's help article](https://support.google.com/fitbit/a
 
 
 FatBit Web replaces the old PyQt desktop application with a more accessible web interface.
+
+## Hosting on Raspberry Pi
+
+A helper script `rpi_server.py` is provided to simplify running the web app on a Raspberry Pi. Specify the desired port as an argument:
+
+```bash
+python rpi_server.py 8080  # runs on http://0.0.0.0:8080/
+```
+
+If no port is given, the default is 5000.
