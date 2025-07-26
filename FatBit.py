@@ -176,34 +176,62 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_table()
 
     def load_files(self):
-        """Load JSON files exported from Fitbit and store the entries."""
+        """Load JSON or ZIP archives containing Fitbit exports."""
         options = QtWidgets.QFileDialog.Options()
-        files, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Load JSON Files", "", "JSON Files (*.json)", options=options)
-        if files:
-            for file in files:
-                with open(file, 'r') as f:
-                    try:
-                        data = json.load(f)
-                        # Each file is expected to contain a list of entries.
-                        for entry in data:
-                            weight = entry.get("weight", None)
-                            if weight is not None:
-                                # If weight > 100, assume it's in lbs and convert to kg.
-                                if weight > 100:
-                                    weight_kg = weight * 0.45359237
-                                else:
-                                    weight_kg = weight
-                                entry["weight_kg"] = weight_kg
-                            # If a user height is set, recalc BMI; otherwise, use the imported value.
-                            if self.user_height:
-                                entry["bmi"] = weight_kg / (self.user_height ** 2)
-                            else:
-                                entry["bmi"] = entry.get("bmi", None)
-                            self.data_manager.add_entry(entry)
-                    except Exception as e:
-                        QtWidgets.QMessageBox.warning(self, "Error", f"Failed to load file {file}: {str(e)}")
-            self.refresh_table()
-            self.update_plot()
+        # Allow selecting both raw JSON files and ZIP archives
+        files, _ = QtWidgets.QFileDialog.getOpenFileNames(
+            self,
+            "Load JSON/ZIP Files",
+            "",
+            "JSON/ZIP Files (*.json *.zip);;All Files (*)",
+            options=options,
+        )
+
+        if not files:
+            return
+
+        for file in files:
+            try:
+                if file.lower().endswith(".zip"):
+                    # Support ZIP archives by iterating over contained JSON files
+                    import zipfile
+
+                    with zipfile.ZipFile(file) as zf:
+                        for name in zf.namelist():
+                            if name.lower().endswith(".json"):
+                                with zf.open(name) as f:
+                                    self._process_json_file(f)
+                else:
+                    # Regular JSON file on disk
+                    with open(file, "r") as f:
+                        self._process_json_file(f)
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(
+                    self, "Error", f"Failed to load file {file}: {str(e)}"
+                )
+
+        self.refresh_table()
+        self.update_plot()
+
+    def _process_json_file(self, file_handle):
+        """Parse JSON weight entries from ``file_handle`` and save them."""
+        data = json.load(file_handle)
+        # Each file is expected to contain a list of entries
+        for entry in data:
+            weight = entry.get("weight", None)
+            if weight is not None:
+                # If weight > 100, assume it's in lbs and convert to kg
+                weight_kg = weight * 0.45359237 if weight > 100 else weight
+                entry["weight_kg"] = weight_kg
+
+            # If a user height is set, recalc BMI; otherwise use imported value
+            if self.user_height:
+                entry["bmi"] = weight_kg / (self.user_height ** 2)
+            else:
+                entry["bmi"] = entry.get("bmi", None)
+
+            # Persist the entry through the data manager
+            self.data_manager.add_entry(entry)
 
     def refresh_table(self):
         """Refresh the table widget with entries from the database."""
