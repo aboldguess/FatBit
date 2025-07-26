@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Plots</h2>
+<div class="row">
+  <div class="col-md-6 mb-4">
+    <h5>Weight (kg) over Time</h5>
+    <img src="{{ url_for('plot_png', plot_type='weight') }}" class="img-fluid" />
+  </div>
+  <div class="col-md-6 mb-4">
+    <h5>BMI over Time</h5>
+    <img src="{{ url_for('plot_png', plot_type='bmi') }}" class="img-fluid" />
+  </div>
+  <div class="col-md-6 mb-4">
+    <h5>Lean Mass (kg) over Time</h5>
+    <img src="{{ url_for('plot_png', plot_type='lean') }}" class="img-fluid" />
+  </div>
+  <div class="col-md-6 mb-4">
+    <h5>Body Fat (%) over Time</h5>
+    <img src="{{ url_for('plot_png', plot_type='fat') }}" class="img-fluid" />
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Entries</h2>
+<form action="{{ url_for('add_entry') }}" method="post" class="row g-3 mb-3">
+  <div class="col-auto">
+    <input type="text" class="form-control" name="logId" placeholder="Log ID">
+  </div>
+  <div class="col-auto">
+    <input type="text" class="form-control" name="date" placeholder="MM/DD/YY" required>
+  </div>
+  <div class="col-auto">
+    <input type="text" class="form-control" name="time" placeholder="HH:MM:SS" required>
+  </div>
+  <div class="col-auto">
+    <input type="number" step="0.01" class="form-control" name="weight_kg" placeholder="Weight (kg)" required>
+  </div>
+  <div class="col-auto">
+    <input type="number" step="0.01" class="form-control" name="fat_percent" placeholder="Body Fat (%)">
+  </div>
+  <div class="col-auto">
+    <input type="text" class="form-control" name="source" placeholder="Source">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary mb-3">Add</button>
+  </div>
+</form>
+{{ tables|safe }}
+<script>
+// Add delete buttons after table is rendered
+const table = document.querySelector('table');
+if (table) {
+  const header = table.querySelector('tr');
+  const th = document.createElement('th');
+  th.innerText = 'Actions';
+  header.appendChild(th);
+  Array.from(table.querySelectorAll('tr')).slice(1).forEach(row => {
+    const id = row.children[0].innerText;
+    const cell = document.createElement('td');
+    cell.innerHTML = `<form action="/delete/${id}" method="post" style="display:inline-block">
+                        <button class="btn btn-danger btn-sm">Delete</button>
+                      </form>
+                      <a class="btn btn-secondary btn-sm" href="/edit/${id}">Edit</a>`;
+    row.appendChild(cell);
+  });
+}
+</script>
+{% endblock %}
