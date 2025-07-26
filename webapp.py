@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import os
+import json
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend for matplotlib
@@ -141,38 +142,92 @@ def import_fitbit_zip(file_obj, source="Fitbit"):
     """
     new_count = 0
     with zipfile.ZipFile(file_obj) as zf:
-        # Look for a CSV file named ``Weight.csv`` somewhere in the archive
-        weight_name = next((n for n in zf.namelist() if n.endswith("Weight.csv")), None)
-        if not weight_name:
-            raise ValueError("Weight.csv not found in ZIP")
-        with zf.open(weight_name) as csv_file:
-            df = pd.read_csv(csv_file)
-            df.columns = [c.strip().lower() for c in df.columns]
+        names = zf.namelist()
 
-            for _, row in df.iterrows():
-                # Map common column names from Fitbit exports
-                date_val = row.get("date")
-                time_val = row.get("time", "00:00:00")
-                weight = row.get("weight") or row.get("weight (kg)")
-                if weight is None:
+        # ------------------------------
+        # First try the older Weight.csv
+        # ------------------------------
+        weight_csv = next((n for n in names if n.endswith("Weight.csv")), None)
+        if weight_csv:
+            with zf.open(weight_csv) as csv_file:
+                df = pd.read_csv(csv_file)
+                # Normalise column names to simplify lookup
+                df.columns = [c.strip().lower() for c in df.columns]
+
+                for _, row in df.iterrows():
+                    date_val = row.get("date")
+                    time_val = row.get("time", "00:00:00")
+                    weight = row.get("weight") or row.get("weight (kg)")
+                    if weight is None:
+                        continue
+                    weight_kg = float(weight)
+                    if weight_kg > 200:  # values >200 are likely lbs
+                        weight_kg *= 0.45359237
+
+                    entry = {
+                        "logId": row.get("logid"),
+                        "date": datetime.datetime.strptime(str(date_val), "%Y-%m-%d").strftime("%m/%d/%y")
+                        if isinstance(date_val, str) and "-" in date_val else str(date_val),
+                        "time": str(time_val),
+                        "weight_kg": weight_kg,
+                        "fat_percent": row.get("fat"),
+                        "bmi": row.get("bmi"),
+                        "source": source,
+                    }
+
+                    if data_manager.add_if_new(entry):
+                        new_count += 1
+            return new_count
+
+        # ------------------------------------------------------------
+        # No Weight.csv found - look for newer JSON files (weight-*.json)
+        # ------------------------------------------------------------
+        json_files = [n for n in names if n.lower().endswith('.json') and os.path.basename(n).lower().startswith('weight-')]
+        if not json_files:
+            raise ValueError("No weight data found in ZIP")
+
+        for name in json_files:
+            with zf.open(name) as json_file:
+                data = json.load(json_file)
+
+            # Some exports wrap the list of entries in a dict. Attempt to
+            # locate the list automatically.
+            if isinstance(data, dict):
+                list_val = None
+                for val in data.values():
+                    if isinstance(val, list):
+                        list_val = val
+                        break
+                data = list_val if list_val is not None else [data]
+
+            if not isinstance(data, list):
+                data = [data]
+
+            for row in data:
+                date_val = row.get('date') or row.get('dateTime')
+                time_val = row.get('time', '00:00:00')
+                weight = (row.get('weight') or row.get('weight_kg') or
+                          row.get('weight (kg)'))
+                if weight is None or date_val is None:
                     continue
                 weight_kg = float(weight)
-                if weight_kg > 200:  # Values >200 are likely lbs
+                if weight_kg > 200:
                     weight_kg *= 0.45359237
 
                 entry = {
-                    "logId": row.get("logid"),
-                    "date": datetime.datetime.strptime(str(date_val), "%Y-%m-%d").strftime("%m/%d/%y")
-                    if isinstance(date_val, str) and "-" in date_val else str(date_val),
-                    "time": str(time_val),
-                    "weight_kg": weight_kg,
-                    "fat_percent": row.get("fat"),
-                    "bmi": row.get("bmi"),
-                    "source": source,
+                    'logId': row.get('logId') or row.get('logid'),
+                    'date': datetime.datetime.strptime(str(date_val), "%Y-%m-%d").strftime("%m/%d/%y")
+                    if isinstance(date_val, str) and '-' in str(date_val) else str(date_val),
+                    'time': str(time_val),
+                    'weight_kg': weight_kg,
+                    'fat_percent': row.get('fat') or row.get('fat_percent'),
+                    'bmi': row.get('bmi'),
+                    'source': source,
                 }
 
                 if data_manager.add_if_new(entry):
                     new_count += 1
+
     return new_count
 
 @app.route('/')
