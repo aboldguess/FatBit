@@ -43,7 +43,10 @@ If you want to import historical Fitbit measurements, Google provides an export 
 2. Deselect everything and then check **Fitbit**.
 3. Follow the prompts to create your export. Google will email you a link when it is ready.
 4. Download the exported ZIP file.
-5. In the **Entries** page, use the *Import Fitbit ZIP* form to upload the file. Any new rows are added automatically while existing ones are skipped.
+5. In the **Entries** page, use the *Import Fitbit ZIP* form to upload the file.
+   The importer understands both the older `Weight.csv` file and the newer
+   `weight-YYYY-MM-DD.json` files produced by Google Takeout. Any new rows are
+   added automatically while existing ones are skipped.
 
 For more details see [Google's help article](https://support.google.com/fitbit/answer/12554576).
 
