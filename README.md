@@ -63,3 +63,15 @@ python rpi_server.py 8080  # runs on http://0.0.0.0:8080/
 ```
 
 If no port is given, the default is 5000.
+
+## Running on Windows
+
+A convenience script `windows_run.py` simplifies setup on Windows. It installs
+required packages using the active Python interpreter and then launches the app
+on a chosen port.
+
+```bash
+python windows_run.py 8080  # hosts on http://0.0.0.0:8080/
+```
+
+If no port is supplied, the default is `5000`.
