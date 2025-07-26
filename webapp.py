@@ -6,6 +6,7 @@ matplotlib.use('Agg')  # Use non-GUI backend for matplotlib
 import matplotlib.pyplot as plt
 import sqlite3
 import datetime
+import zipfile
 
 # ---------------------------
 # Data persistence utilities
@@ -61,6 +62,19 @@ class DataManager:
         ))
         self.conn.commit()
 
+    def entry_exists(self, log_id, timestamp):
+        """Return True if an entry with the same ``logId`` or ``timestamp`` exists."""
+        if log_id is not None:
+            cur = self.conn.execute(
+                "SELECT 1 FROM entries WHERE logId=?", (log_id,)
+            )
+            if cur.fetchone():
+                return True
+        cur = self.conn.execute(
+            "SELECT 1 FROM entries WHERE timestamp=?", (timestamp,)
+        )
+        return cur.fetchone() is not None
+
     def get_all_entries(self):
         """Return all entries as a pandas DataFrame."""
         return pd.read_sql_query("SELECT * FROM entries ORDER BY timestamp", self.conn)
@@ -96,6 +110,19 @@ class DataManager:
         self.conn.execute("DELETE FROM entries WHERE id=?", (entry_id,))
         self.conn.commit()
 
+    def add_if_new(self, entry):
+        """Add ``entry`` only if it does not already exist."""
+        dt_str = f"{entry['date']} {entry['time']}"
+        try:
+            dt_obj = datetime.datetime.strptime(dt_str, "%m/%d/%y %H:%M:%S")
+            timestamp = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            timestamp = dt_str
+        if not self.entry_exists(entry.get("logId"), timestamp):
+            self.add_entry(entry)
+            return True
+        return False
+
 # -----------------------
 # Flask application setup
 # -----------------------
@@ -105,6 +132,49 @@ app.config['SECRET_KEY'] = 'change-me'
 # Use a global DataManager instance
 data_manager = DataManager()
 
+
+def import_fitbit_zip(file_obj, source="Fitbit"):
+    """Import weight entries from a Fitbit export ZIP file.
+
+    Only new entries (based on ``logId`` or timestamp) are stored. Returns the
+    number of newly added rows.
+    """
+    new_count = 0
+    with zipfile.ZipFile(file_obj) as zf:
+        # Look for a CSV file named ``Weight.csv`` somewhere in the archive
+        weight_name = next((n for n in zf.namelist() if n.endswith("Weight.csv")), None)
+        if not weight_name:
+            raise ValueError("Weight.csv not found in ZIP")
+        with zf.open(weight_name) as csv_file:
+            df = pd.read_csv(csv_file)
+            df.columns = [c.strip().lower() for c in df.columns]
+
+            for _, row in df.iterrows():
+                # Map common column names from Fitbit exports
+                date_val = row.get("date")
+                time_val = row.get("time", "00:00:00")
+                weight = row.get("weight") or row.get("weight (kg)")
+                if weight is None:
+                    continue
+                weight_kg = float(weight)
+                if weight_kg > 200:  # Values >200 are likely lbs
+                    weight_kg *= 0.45359237
+
+                entry = {
+                    "logId": row.get("logid"),
+                    "date": datetime.datetime.strptime(str(date_val), "%Y-%m-%d").strftime("%m/%d/%y")
+                    if isinstance(date_val, str) and "-" in date_val else str(date_val),
+                    "time": str(time_val),
+                    "weight_kg": weight_kg,
+                    "fat_percent": row.get("fat"),
+                    "bmi": row.get("bmi"),
+                    "source": source,
+                }
+
+                if data_manager.add_if_new(entry):
+                    new_count += 1
+    return new_count
+
 @app.route('/')
 def index():
     """Display all entries and allow basic operations."""
@@ -112,7 +182,9 @@ def index():
     # Convert the data frame to an HTML table string. This string will be
     # injected directly into the template so the browser renders a nice table.
     table_html = df.to_html(classes='table table-striped', index=False)
-    return render_template('index.html', table=table_html, titles=df.columns.values)
+    return render_template('index.html', table=table_html,
+                           titles=df.columns.values,
+                           datetime=datetime)
 
 @app.route('/add', methods=['POST'])
 def add_entry():
@@ -130,6 +202,22 @@ def add_entry():
         entry['bmi'] = entry['weight_kg'] / (data_manager.height ** 2)
     data_manager.add_entry(entry)
     flash('Entry added', 'success')
+    return redirect(url_for('index'))
+
+
+@app.route('/import', methods=['POST'])
+def import_zip_route():
+    """Handle Fitbit ZIP uploads from the web form."""
+    file = request.files.get('zipfile')
+    source = request.form.get('source', 'Fitbit')
+    if not file or not file.filename.lower().endswith('.zip'):
+        flash('Please upload a valid .zip file', 'danger')
+        return redirect(url_for('index'))
+    try:
+        added = import_fitbit_zip(file, source)
+        flash(f'Imported {added} new entries', 'success')
+    except Exception as exc:
+        flash(f'Import failed: {exc}', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/delete/<int:entry_id>', methods=['POST'])
