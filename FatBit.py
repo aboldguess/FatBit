@@ -1,18 +1,27 @@
-import sys, json, os, sqlite3, datetime
+"""GUI based weight tracker."""
+
+import sys
+import json
+import os
+import sqlite3
+import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from PyQt5 import QtWidgets, QtCore
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-# DataManager handles saving and loading from a local SQLite database.
 class DataManager:
+    """Simple wrapper around SQLite for storing weight entries."""
+
     def __init__(self, db_file="weight_data.db"):
+        # Connect to the SQLite database file and ensure schema exists
         self.db_file = db_file
         self.conn = sqlite3.connect(self.db_file)
         self.create_table()
 
     def create_table(self):
+        """Create table if it does not exist."""
         query = """
         CREATE TABLE IF NOT EXISTS entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +39,7 @@ class DataManager:
         self.conn.commit()
 
     def add_entry(self, entry):
+        """Insert a new weight entry into the database."""
         query = """
         INSERT INTO entries (logId, date, time, timestamp, weight_kg, fat_percent, bmi, source)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -51,12 +61,14 @@ class DataManager:
         self.conn.commit()
 
     def get_all_entries(self):
+        """Return all entries ordered by timestamp as a DataFrame."""
         df = pd.read_sql_query("SELECT * FROM entries ORDER BY timestamp", self.conn)
         return df
 
     def update_entry(self, entry_id, updated_entry):
+        """Update an existing entry identified by ``entry_id``."""
         query = """
-        UPDATE entries 
+        UPDATE entries
         SET logId=?, date=?, time=?, timestamp=?, weight_kg=?, fat_percent=?, bmi=?, source=?
         WHERE id=?
         """
@@ -78,31 +90,41 @@ class DataManager:
         self.conn.commit()
 
     def delete_entry(self, entry_id):
+        """Remove an entry from the database."""
         query = "DELETE FROM entries WHERE id=?"
         self.conn.execute(query, (entry_id,))
         self.conn.commit()
 
 # A simple matplotlib canvas to embed plots into our PyQt5 app.
 class MplCanvas(FigureCanvas):
+    """Matplotlib canvas used for plotting inside the Qt application."""
+
     def __init__(self, parent=None, width=5, height=4, dpi=100):
+        # Create a figure and an axes object then initialise the base class
         self.fig, self.ax = plt.subplots(figsize=(width, height), dpi=dpi)
         super(MplCanvas, self).__init__(self.fig)
 
 # MainWindow is the primary application window.
 class MainWindow(QtWidgets.QMainWindow):
+    """Primary application window."""
+
     def __init__(self):
         super(MainWindow, self).__init__()
         self.setWindowTitle("Weight Tracker")
         self.resize(1000, 600)
+        # Manager handles persistence of data
         self.data_manager = DataManager()
-        self.user_height = None  # in meters; set in Settings tab
+        # User height (in meters) is used when calculating BMI
+        self.user_height = None
         self.initUI()
 
     def initUI(self):
+        """Build the UI: tabs for data, plots and settings."""
         self.tabs = QtWidgets.QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        # Data tab: shows the table and controls for file loading and editing entries.
+        # --- Data tab ---
+        # Contains the table of entries and buttons for data manipulation
         self.data_tab = QtWidgets.QWidget()
         self.tabs.addTab(self.data_tab, "Data")
         self.data_layout = QtWidgets.QVBoxLayout(self.data_tab)
@@ -125,7 +147,8 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_layout.addWidget(self.delete_btn)
         self.data_layout.addLayout(btn_layout)
 
-        # Plot tab: shows graphs of the data.
+        # --- Plot tab ---
+        # Visualises weight data using Matplotlib
         self.plot_tab = QtWidgets.QWidget()
         self.tabs.addTab(self.plot_tab, "Plots")
         self.plot_layout = QtWidgets.QVBoxLayout(self.plot_tab)
@@ -138,7 +161,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
         self.plot_layout.addWidget(self.canvas)
 
-        # Settings tab: allows the user to set their height (needed for recalculating BMI).
+        # --- Settings tab ---
+        # Allows user to supply height so BMI can be recalculated
         self.settings_tab = QtWidgets.QWidget()
         self.tabs.addTab(self.settings_tab, "Settings")
         self.settings_layout = QtWidgets.QFormLayout(self.settings_tab)
@@ -152,6 +176,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_table()
 
     def load_files(self):
+        """Load JSON files exported from Fitbit and store the entries."""
         options = QtWidgets.QFileDialog.Options()
         files, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Load JSON Files", "", "JSON Files (*.json)", options=options)
         if files:
@@ -181,6 +206,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.update_plot()
 
     def refresh_table(self):
+        """Refresh the table widget with entries from the database."""
         df = self.data_manager.get_all_entries()
         self.table.setRowCount(len(df))
         self.table.setColumnCount(len(df.columns))
@@ -191,6 +217,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.resizeColumnsToContents()
 
     def add_entry(self):
+        """Prompt the user for a new entry and insert it."""
         dialog = EntryDialog(self)
         if dialog.exec_():
             entry = dialog.get_data()
@@ -205,6 +232,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.update_plot()
 
     def edit_entry(self):
+        """Edit the currently selected entry."""
         selected = self.table.selectedItems()
         if not selected:
             QtWidgets.QMessageBox.information(self, "Select Entry", "Please select an entry to edit.")
@@ -225,6 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.update_plot()
 
     def delete_entry(self):
+        """Delete the currently selected entry after confirmation."""
         selected = self.table.selectedItems()
         if not selected:
             QtWidgets.QMessageBox.information(self, "Select Entry", "Please select an entry to delete.")
@@ -240,6 +269,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.update_plot()
 
     def update_plot(self):
+        """Update the matplotlib plot based on the selected plot type."""
         df = self.data_manager.get_all_entries()
         self.canvas.ax.clear()
         # Convert timestamp column to datetime
@@ -269,6 +299,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.draw()
 
     def save_settings(self):
+        """Store the user's height for BMI calculations."""
         try:
             height = float(self.height_edit.text())
             self.user_height = height
@@ -278,6 +309,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
 # Dialog for adding or editing an entry.
 class EntryDialog(QtWidgets.QDialog):
+    """Dialog used for creating or editing a single entry."""
+
     def __init__(self, parent=None, prefill=None):
         super(EntryDialog, self).__init__(parent)
         self.setWindowTitle("Entry")
@@ -316,6 +349,7 @@ class EntryDialog(QtWidgets.QDialog):
         self.layout.addWidget(self.buttonBox)
 
     def get_data(self):
+        """Return the entered data as a dictionary."""
         return {
             "logId": int(self.logId_edit.text()) if self.logId_edit.text().isdigit() else None,
             "date": self.date_edit.text(),
