@@ -23,6 +23,10 @@ pip install gunicorn
 gunicorn -w 4 webapp:app
 ```
 
+Gunicorn requires a Unix-like environment. On Windows you can either run the
+application directly with `python webapp.py` or use a WSGI server that supports
+Windows, such as `waitress`.
+
 Ensure the `weight_data.db` file is persisted between runs.
 
 ## Usage
