@@ -109,7 +109,10 @@ data_manager = DataManager()
 def index():
     """Display all entries and allow basic operations."""
     df = data_manager.get_all_entries()
-    return render_template('index.html', tables=[df.to_html(classes='table table-striped', index=False)], titles=df.columns.values)
+    # Convert the data frame to an HTML table string. This string will be
+    # injected directly into the template so the browser renders a nice table.
+    table_html = df.to_html(classes='table table-striped', index=False)
+    return render_template('index.html', table=table_html, titles=df.columns.values)
 
 @app.route('/add', methods=['POST'])
 def add_entry():
