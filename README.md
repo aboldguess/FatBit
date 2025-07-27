@@ -59,13 +59,15 @@ contained JSON entries automatically.
 
 ## Hosting on Raspberry Pi
 
-A helper script `rpi_server.py` is provided to simplify running the web app on a Raspberry Pi. Specify the desired port as an argument:
+A helper script `rpi_fatbit.py` is provided to simplify running the web app on a Raspberry Pi. Specify the desired port as an argument or use the optional `--prod` flag to run under gunicorn:
 
 ```bash
-python rpi_server.py 8080  # runs on http://0.0.0.0:8080/
+python rpi_fatbit.py 8080           # development server
+python rpi_fatbit.py --prod 8080    # gunicorn, suitable for production
 ```
 
-If no port is given, the default is 5000.
+If no port is given, the default is 5000. When `--prod` is used the script
+launches `gunicorn` with four workers; ensure `gunicorn` is installed first.
 
 ## Running on Windows
 
